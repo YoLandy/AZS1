@@ -1,9 +1,9 @@
 byte servonum [9] = {0b10000000, 0b01000000, 0b00100000, 0b00010000, 0b00001000, 0b00000100, 0b00000010, 0b00000001, 0b00000000};
 
-int dataPin = 13;
-int clockPin = 12;
-int latchPin = 11;
-int low = 9;
+int dataPin = 13;  //идет в DS (14 пин на регистре) 
+int clockPin = 12; //идет в SH_CP (11 пин на регистре)
+int latchPin = 11; //идет в ST_CP (12 пин на регистре)
+int low = 9; //это 9ая ячейка в servonum то есть на все выходы идет 0
 
 
 int PinOut[4] = {5, 4, 3, 2}; // пины выходы
@@ -19,15 +19,15 @@ const char value[4][4] =
 };
 // двойной массив, обозначающий кнопку
 
-char b; // переменная, куда кладется число из массива(номер кнопки)
-int pin = 0;
-int use = 0;
-int digit;
-int NumOfCell_1;
-int NumOfCell_2 = NumOfCell_1 + 1;
-int Cells [8] = {0, 0, 0, 0, 0, 0, 0, 0};
-int PinCode [17] [4];
-char letter;
+char b;// при нажатии на кнопку на кейборде записываем эту цифру как b
+int pin = 0;//некоторые циклы while(pin == 0) когда просиходит нужное действие pin = 1 и выходим из цикла
+int use = 0;//???
+int digit;//зачем?
+int NumOfCell_1;//индекс ячейки массива для первого пароля
+int NumOfCell_2 = NumOfCell_1 + 1;//индекс ячейки массива для сравнительного мароля
+int Cells [8] = {0, 0, 0, 0, 0, 0, 0, 0};//для того что бы определять используется ячейка шкафчика или нет (нет = 0, да = 1)
+int PinCode [17] [4];//большой массив для всех всех всех паролей
+char letter;//буквенный индификатор 
 
 void setup()
 {
@@ -48,14 +48,14 @@ void setup()
   Serial.begin(9600); // открываем Serial порт
 }
 
-void ServoWrite(int x){
-  digitalWrite(latchPin, LOW);
-  shiftOut(dataPin, clockPin, LSBFIRST, servonum[x]); 
-  digitalWrite(latchPin, HIGH);
+void ServoWrite(int x){ // подаем сигнал на нужный порт в регистре (Q0-Q7)
+  digitalWrite(latchPin, LOW);//открываем регистр
+  shiftOut(dataPin, clockPin, LSBFIRST, servonum[x]);//записывается последовательность 
+  digitalWrite(latchPin, HIGH);//закрываем регистр
 }
 
 void OpenDoor(int x){
-  for (int pos = 0; pos < 90; pos++){
+  for (int pos = 0; pos < 90; pos++){ //здесь не уверен, но импульсно подавются на сервопровод (очень вероятно здесть ошыбка)
     ServoWrite(x);
     delayMicroseconds(PulseTime);
     ServoWrite(low);
@@ -90,7 +90,7 @@ void num() // создаем функцию для чтения кнопок
   }
 }
 
-void EnterLetter() {
+void EnterLetter() {   //записываем букву ячейки
   while (pin == 0) {
     for (int i = 1; i <= 4; i++) // цикл, передающий 0 по всем столбцам
     {
@@ -111,28 +111,25 @@ void EnterLetter() {
   pin = 0;
 }
 
-void EnterNum() {
+void EnterNum() { //записывавем цифру
   while (pin == 0) {
     num();
     delay(100);
   }
 }
 
-void EnterPin(int x)
+void EnterPin(int x) //записываем пароль
 {
   for (int i = 0; i < 4; i++)
   {
     pin = 0;
-    while (pin == 0) {
-      num();
-      delay(100);
-    }
+    EnterNum();
     Serial.print('*');
     PinCode [x] [i] = b;
   }
 }
 
-void CheckPin() {
+void CheckPin() { //сравниваем два пароля (по одной цифре из каждого массива) 
   for (int i = 0; i < 4; i++) {
     char  a = PinCode [NumOfCell_1] [i]; Serial.println(a);
     char  b = PinCode [NumOfCell_2] [i]; Serial.println(b);
@@ -147,25 +144,27 @@ void CheckPin() {
     {
       //Serial.print (i);
       //Serial.println ("true");
-      pin = 1;
+      pin = 1; //!!!!!!!!!!!!!!!!!!!!!!!!!!!иногда применяется как тру/фолс 
     }
   }
 }
 
-void EnterPinTwice(char cell, int cellNum) {
+void EnterPinTwice(char cell, int cellNum) {   //cell-буква cellNum-номер ячейки
+  //Это все для установки пароля, то есть пользователь должен два раза подрят ввести придуманный пароль перед тем как дверь закроется
   Serial.print("Create your password for :");
   Serial.print(cell);
   Serial.println(cellNum);
-  EnterPin(NumOfCell_1);
+  EnterPin(NumOfCell_1);//записываем основной
   Serial.println("pin1");
   Serial.println("Repeat your pin");
-  EnterPin(NumOfCell_2);
+  EnterPin(NumOfCell_2);//записываем сравнительный
   Serial.println ("pin2");
-  CheckPin();
+  CheckPin();//сравниваем
 }
 
-void CheckMainPin(int x) {
-  EnterPin(NumOfCell_2);
+void CheckMainPin(int x) { //х- это индекс для массива использования, а так же номер сервопривода который надо открыть/закрыть
+  //это уже главный этап, дверь откроется только тогда когда пользователь правильно введет придуманный ранее пароль 
+  EnterPin(NumOfCell_2);//записываем в сравнительный массив
   Serial.println ("pin3");
   CheckPin();
   if (pin == 0) {
@@ -173,64 +172,65 @@ void CheckMainPin(int x) {
   }
   else {
     Serial.println ("OpenDoor");
-    OpenDoor();
+    OpenDoor(x);
     Cells[x] = 0;
   }
 }
 
 void TheCellProgramm(char cell, int cellNum, int c)
+ //сell как всегда буква, cellNum цифра, c-номер юзания
 {
-  int num_arr = c + c;
+  int num_arr = c + c;//я заметил, что номер массива пароля ровно в два раза больше чем с
   //Serial.print (cell);
   //Serial.println (cellNum);
-  NumOfCell_1 = num_arr;
+  NumOfCell_1 = num_arr;// следовательно сравнительный массив равен с+с+1
   delay(1000);
   use = Cells [c];
-  if (use != 1) {
-    Cells [c] = 1;
+  if (use != 1) { //ветка для установки пароля (вот здесь и понадобился use) :)
+    Cells [c] = 1;//метим эту ячейку как "в использовании"
     EnterPinTwice(cell, cellNum);
     if (pin == 0) {
-      Serial.println("Pin didn't repeated truly");
+      Serial.println("Pin didn't repeated truly");//если пароль установили не верно все идет обратно
       Cells [c] = 0;
     }
     else {
       Serial.println ("Password saved");
-      CloseDoor();
+      CloseDoor(c);//удивительно! номер юзания равен номеру замка(сервопривода)
     }
   }
   else {
     Serial.println("Enter your saved password");
-    CheckMainPin(c);
+    CheckMainPin(c);// если юз = 1 то значит мы уже устанавливали пароль 
   }
 }
 
 void loop()
 {
-  letter = 0;
-  pin = 0;
+  letter = 0;//обнуляем
+  pin = 0;//обнуляем
   Serial.println("Enter name of cell");
-  EnterLetter();
+  EnterLetter();//вводим букву
   delay (100);
   switch (letter) {
     case 'A':
-      EnterNum();
-      if (b == 48) {
-        TheCellProgramm ('A', 0, 0);
+      EnterNum();//вводим цифру
+      if (b == 48) {     //не хотелось переводить в char (в acsii 0)
+        TheCellProgramm ('A', 0, 0);//A0
       }
       else if (b == 49) {
-        TheCellProgramm ('A', 1, 4);
+        TheCellProgramm ('A', 1, 4);//А1
       }
       else {
-        Serial.println("Not found");
+        Serial.println("Not found");//если что то не так
       }
       break;
     case 'B':
       EnterNum();
       if (b == 48) {
-        TheCellProgramm ('B', 0, 1);
+        TheCellProgramm ('B', 0, 1);//В0  
       }
       else if (b == 49) {
-        TheCellProgramm ('B', 1, 5);
+        TheCellProgramm ('B', 1, 5);//В1
       }
       else {
         Serial.println("Not found");
@@ -239,10 +239,10 @@ void loop()
     case 'C':
       EnterNum();
       if (b == 48) {
-        TheCellProgramm ('C', 0, 2);
+        TheCellProgramm ('C', 0, 2);//C0
       }
       else if (b == 49) {
-        TheCellProgramm ('C', 1, 6);
+        TheCellProgramm ('C', 1, 6);//C1
       }
       else {
         Serial.println("Not found");
@@ -251,16 +251,17 @@ void loop()
     case 'D':
       EnterNum();
       if (b == 48) {
-        TheCellProgramm ('D', 0, 3);
+        TheCellProgramm ('D', 0, 3);//D0
       }
       else if (b == 49) {
-        TheCellProgramm ('D', 1, 7);
+        TheCellProgramm ('D', 1, 7);//D1
       }
       else {
         Serial.println("Not found");
       }
       break;
     default:
+        Serial.println("Not found");  
       break;
   }
 }
